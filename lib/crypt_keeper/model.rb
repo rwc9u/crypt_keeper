@@ -10,8 +10,9 @@ module CryptKeeper
     def ensure_valid_field!(field)
       if self.class.columns_hash["#{field}"].nil?
         raise ArgumentError, "Column :#{field} does not exist"
-      elsif self.class.columns_hash["#{field}"].type != :text
-        raise ArgumentError, "Column :#{field} must be of type 'text' to be used for encryption"
+      elsif self.class.columns_hash["#{field}"].type != :text && self.class.columns_hash["#{field}"].type != :text_array
+        bad_type = self.class.columns_hash["#{field}"].type
+        raise ArgumentError, "Column :#{field} must be of type 'text' to be used for encryption, it is #{bad_type}"
       end
     end
 
@@ -21,7 +22,13 @@ module CryptKeeper
     def encrypt_callback
       crypt_keeper_fields.each do |field|
         if !self[field].nil?
-          self[field] = self.class.encrypt read_attribute(field)
+          if read_attribute(field).kind_of?(String)
+            self[field] = self.class.encrypt read_attribute(field)
+          elsif read_attribute(field).kind_of?(Array)
+            self[field] = read_attribute(field).map {|v| self.class.encrypt v }
+          else
+            raise ArgumentError, "Column: #{field} is not a type that I know how to deal with"
+          end
         end
       end
     end
@@ -30,7 +37,13 @@ module CryptKeeper
     def decrypt_callback
       crypt_keeper_fields.each do |field|
         if !self[field].nil?
-          self[field] = self.class.decrypt read_attribute(field)
+          if read_attribute(field).kind_of?(String)
+            self[field] = self.class.decrypt read_attribute(field)
+          elsif read_attribute(field).kind_of?(Array)
+            self[field] = read_attribute(field).map { |v| self.class.decrypt v }
+          else
+            raise ArgumentError, "Column: #{field} is not a type that I know how to deal with"
+          end
         end
       end
     end
